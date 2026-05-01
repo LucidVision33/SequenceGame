@@ -1,4 +1,4 @@
-import { useEffect, useState, useCallback } from 'react';
+import { useEffect, useRef, useState, useCallback } from 'react';
 import { DndContext, PointerSensor, useSensor, useSensors } from '@dnd-kit/core';
 import type { DragEndEvent } from '@dnd-kit/core';
 import socket from './socket';
@@ -9,8 +9,8 @@ import Hand from './components/Hand';
 import Lobby from './components/Lobby';
 import GameLog from './components/GameLog';
 import { parseCard } from './data/boardLayout';
+import { sounds } from './sounds';
 import './index.css';
-
 
 function getValidCells(board: GameView['board'], card: CardCode | null, myId: string): Set<string> {
   if (!card) return new Set();
@@ -39,6 +39,10 @@ export default function App() {
   const [selectedCard, setSelectedCard] = useState<CardCode | null>(null);
   const [hand, setHand] = useState<CardCode[]>([]);
 
+  const prevTurnRef = useRef<string | null>(null);
+  const prevSeqRef = useRef<number>(0);
+  const prevWinnerRef = useRef<string | null>(null);
+
   const sensors = useSensors(useSensor(PointerSensor, { activationConstraint: { distance: 8 } }));
 
   useEffect(() => {
@@ -46,7 +50,6 @@ export default function App() {
     socket.on('game_state', (v: GameView) => {
       setView(v);
       setHand(prev => {
-        // Preserve local order when possible
         if (prev.length === 0) return v.myHand;
         const newCards = [...v.myHand];
         const ordered: CardCode[] = [];
@@ -67,6 +70,24 @@ export default function App() {
   useEffect(() => {
     if (error) { const t = setTimeout(() => setError(null), 3000); return () => clearTimeout(t); }
   }, [error]);
+
+  // Sound effects
+  useEffect(() => {
+    if (!view || view.phase !== 'playing') return;
+    const mySeq = view.players.find(p => p.id === view.myId)?.sequenceCount ?? 0;
+
+    if (view.winner && view.winner !== prevWinnerRef.current) {
+      sounds.win();
+    } else if (view.currentPlayerId === view.myId && prevTurnRef.current !== view.myId) {
+      sounds.yourTurn();
+    } else if (mySeq > prevSeqRef.current) {
+      sounds.sequence();
+    }
+
+    prevTurnRef.current = view.currentPlayerId;
+    prevSeqRef.current = mySeq;
+    prevWinnerRef.current = view.winner;
+  }, [view]);
 
   const handleCreateRoom = (name: string) => {
     socket.emit('create_room', name, (res: { roomId: string } | { error: string }) => {
@@ -95,6 +116,7 @@ export default function App() {
   const playCard = useCallback((card: CardCode, row: number, col: number) => {
     if (!view) return;
     socket.emit('play_card', { roomId: view.roomId, card, row, col });
+    sounds.placeToken();
     setSelectedCard(null);
   }, [view]);
 
@@ -137,24 +159,30 @@ export default function App() {
   for (const p of view.players) playerColors[p.id] = TOKEN_COLOR_HEX[p.tokenColor];
 
   const discardTop = view.discardPile.at(-1);
+  const winnerName = view.players.find(p => p.id === view.winner)?.name ?? 'Someone';
 
   return (
     <DndContext sensors={sensors} onDragEnd={handleDragEnd}>
       {error && <div className="toast">{error}</div>}
+
+      {view.winner && (
+        <div className="win-overlay">
+          <div className="win-modal">
+            <div className="win-modal__emoji">🎉</div>
+            <div className="win-modal__label">Winner!</div>
+            <div className="win-modal__name">{winnerName}</div>
+          </div>
+        </div>
+      )}
+
       <div className="game">
 
         {/* ── Left: Board ── */}
         <div className="game__board-col">
-          {view.winner ? (
-            <div className="winner-banner">
-              🎉 {view.players.find(p => p.id === view.winner)?.name ?? 'Someone'} wins!
-            </div>
-          ) : (
-            <div className={`turn-banner ${isMyTurn ? 'turn-banner--mine' : ''}`}>
-              {isMyTurn ? 'Your turn' : `${view.players.find(p => p.id === view.currentPlayerId)?.name}'s turn`}
-              {isMyTurn && selectedCard && <span className="turn-hint"> — click a highlighted cell</span>}
-            </div>
-          )}
+          <div className={`turn-banner ${isMyTurn ? 'turn-banner--mine' : ''}`}>
+            {isMyTurn ? 'Your turn' : `${view.players.find(p => p.id === view.currentPlayerId)?.name}'s turn`}
+            {isMyTurn && selectedCard && <span className="turn-hint"> — click a highlighted cell</span>}
+          </div>
 
           <Board
             board={view.board}
