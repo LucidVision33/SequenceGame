@@ -2,7 +2,7 @@
   "name": "sequence-game",
   "version": "1.0.0",
   "engines": {
-    "node": ">=18"
+    "node": ">=20.19"
   },
   "scripts": {
     "build": "npm install --prefix client && npm run build --prefix client && npm install --prefix server && npm run build --prefix server",
