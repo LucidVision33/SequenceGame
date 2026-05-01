@@ -1,6 +1,5 @@
 import { useDroppable } from '@dnd-kit/core';
 import type { BoardCellState } from '../types';
-import { TOKEN_COLOR_HEX } from '../types';
 import { parseCard } from '../data/boardLayout';
 
 interface BoardCellProps {

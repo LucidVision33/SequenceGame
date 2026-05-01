@@ -11,18 +11,6 @@ import GameLog from './components/GameLog';
 import { parseCard } from './data/boardLayout';
 import './index.css';
 
-const BOARD_LAYOUT: string[][] = [
-  ['FREE','2S','3S','4S','5S','6S','7S','8S','9S','FREE'],
-  ['6C','5C','4C','3C','2C','AH','KH','QH','TH','TS'],
-  ['7C','AS','2D','3D','4D','5D','6D','7D','9H','QS'],
-  ['8C','KS','6C','5C','4C','3C','2C','8D','8H','KS'],
-  ['9C','QS','7C','6H','5H','4H','AH','9D','7H','AS'],
-  ['TC','TS','8C','7H','2H','3H','KH','TD','6H','2D'],
-  ['QC','9S','9C','8H','9H','TH','QH','QD','5H','3D'],
-  ['KC','8S','TC','QC','KC','AC','AD','KD','4H','4D'],
-  ['AC','7S','6S','5S','4S','3S','2S','2H','3H','5D'],
-  ['FREE','AD','KD','QD','TD','9D','8D','7D','6D','FREE'],
-];
 
 function getValidCells(board: GameView['board'], card: CardCode | null, myId: string): Set<string> {
   if (!card) return new Set();
@@ -148,7 +136,6 @@ export default function App() {
   const playerColors: Record<string, string> = {};
   for (const p of view.players) playerColors[p.id] = TOKEN_COLOR_HEX[p.tokenColor];
 
-  const me = view.players.find(p => p.id === view.myId);
   const discardTop = view.discardPile.at(-1);
 
   return (
