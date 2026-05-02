@@ -435,11 +435,12 @@ body {
   }
 
   /* Hand above discard/log — single row of 7 cards */
-  .hand-area { order: -1; height: auto; }
+  .hand-area { order: -1; height: auto; overflow-x: auto; }
   .hand { flex-wrap: nowrap; gap: 4px; }
   .hand-card {
-    flex: 1 1 0; min-width: 0; width: auto;
+    width:  calc((100vw - 64px) / 7);
     height: calc((100vw - 64px) / 7 * 1.38);
+    flex-shrink: 0;
   }
   .hand-card__rank { font-size: 13px; }
   .hand-card__suit { font-size: 15px; }
