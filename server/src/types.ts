@@ -3,6 +3,7 @@ export type GamePhase = 'lobby' | 'playing' | 'finished';
 
 export interface ServerPlayer {
   id: string;
+  clientId: string;
   name: string;
   tokenColor: TokenColor;
   hand: string[];

@@ -15,6 +15,7 @@ const httpServer = createServer(app);
 const io = new Server(httpServer, { cors: { origin: '*' } });
 
 const rooms = new Map<string, Room>();
+const socketClientMap = new Map<string, string>(); // socket.id → clientId
 
 function makeRoomId(): string {
   const chars = 'ABCDEFGHJKLMNPQRSTUVWXYZ23456789';
@@ -34,12 +35,26 @@ const TOKEN_COLORS: TokenColor[] = ['blue', 'red', 'green', 'yellow', 'purple'];
 io.on('connection', (socket) => {
   console.log(`[+] ${socket.id}`);
 
+  // Called on every connect/reconnect — registers clientId and re-attaches to room if needed
+  socket.on('register', ({ clientId, roomId }: { clientId: string; roomId: string }) => {
+    socketClientMap.set(socket.id, clientId);
+    if (!roomId) return;
+    const room = rooms.get(roomId);
+    if (!room) return;
+    const player = room.players.find(p => p.clientId === clientId);
+    if (!player) return;
+    player.id = socket.id;
+    socket.join(roomId);
+    socket.emit('game_state', buildPlayerView(room, player.id));
+  });
+
   socket.on('create_room', (name: string, cb: (res: { roomId: string } | { error: string }) => void) => {
+    const clientId = socketClientMap.get(socket.id) ?? socket.id;
     const roomId = makeRoomId();
     const room: Room = {
       id: roomId,
       phase: 'lobby',
-      players: [{ id: socket.id, name: name || 'Player 1', tokenColor: TOKEN_COLORS[0], hand: [], sequenceCount: 0 }],
+      players: [{ id: socket.id, clientId, name: name || 'Player 1', tokenColor: TOKEN_COLORS[0], hand: [], sequenceCount: 0 }],
       board: createInitialBoard(),
       currentPlayerIndex: 0,
       deck: [],
@@ -65,9 +80,11 @@ io.on('connection', (socket) => {
     if (room.players.length >= 4) return cb({ error: 'Room is full' });
     if (room.players.find(p => p.id === socket.id)) return cb({ error: 'Already in room' });
 
+    const clientId = socketClientMap.get(socket.id) ?? socket.id;
     const playerName = name || `Player ${room.players.length + 1}`;
     room.players.push({
       id: socket.id,
+      clientId,
       name: playerName,
       tokenColor: TOKEN_COLORS[room.players.length % TOKEN_COLORS.length],
       hand: [],
@@ -134,17 +151,22 @@ io.on('connection', (socket) => {
 
   socket.on('disconnect', () => {
     console.log(`[-] ${socket.id}`);
+    socketClientMap.delete(socket.id);
     for (const [roomId, room] of rooms) {
       const idx = room.players.findIndex(p => p.id === socket.id);
       if (idx !== -1) {
-        room.players.splice(idx, 1);
-        if (room.players.length === 0) {
-          rooms.delete(roomId);
-        } else {
-          if (room.currentPlayerIndex >= room.players.length)
-            room.currentPlayerIndex = 0;
-          broadcastRoom(room);
+        if (room.phase === 'lobby') {
+          // In lobby: remove the player immediately
+          room.players.splice(idx, 1);
+          if (room.players.length === 0) {
+            rooms.delete(roomId);
+          } else {
+            if (room.currentPlayerIndex >= room.players.length)
+              room.currentPlayerIndex = 0;
+            broadcastRoom(room);
+          }
         }
+        // During a game: keep the slot so the player can reconnect via 'register'
       }
     }
   });

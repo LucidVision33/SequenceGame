@@ -6,6 +6,7 @@ import {
 import type { DragStartEvent, DragEndEvent } from '@dnd-kit/core';
 import { SortableContext, rectSortingStrategy, arrayMove } from '@dnd-kit/sortable';
 import socket from './socket';
+import { clientId } from './clientId';
 import type { GameView, TokenColor, CardCode } from './types';
 import { TOKEN_COLOR_HEX } from './types';
 import Board from './components/Board';
@@ -60,6 +61,12 @@ export default function App() {
 
   useEffect(() => {
     socket.connect();
+    socket.on('connect', () => {
+      socket.emit('register', {
+        clientId,
+        roomId: localStorage.getItem('seq_room_id') ?? '',
+      });
+    });
     socket.on('game_state', (v: GameView) => {
       setView(v);
       setHand(prev => {
@@ -104,12 +111,14 @@ export default function App() {
   const handleCreateRoom = (name: string) => {
     socket.emit('create_room', name, (res: { roomId: string } | { error: string }) => {
       if ('error' in res) setError(res.error);
+      else localStorage.setItem('seq_room_id', res.roomId);
     });
   };
 
   const handleJoinRoom = (roomId: string, name: string) => {
     socket.emit('join_room', { roomId, name }, (res: { ok: true } | { error: string }) => {
       if ('error' in res) setError(res.error);
+      else localStorage.setItem('seq_room_id', roomId.toUpperCase());
     });
   };
 
