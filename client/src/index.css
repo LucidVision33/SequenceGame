@@ -434,9 +434,16 @@ body {
     height: calc(var(--cell) * 0.64);
   }
 
-  /* Hand above discard/log, sized for touch */
-  .hand-area { order: -1; height: auto; min-height: 100px; }
-  .hand-card { width: 56px; height: 78px; }
+  /* Hand above discard/log — single row of 7 cards */
+  .hand-area { order: -1; height: auto; }
+  .hand { flex-wrap: nowrap; gap: 4px; }
+  .hand-card {
+    flex: 1 1 0; min-width: 0; width: auto;
+    height: calc((100vw - 64px) / 7 * 1.38);
+  }
+  .hand-card__rank { font-size: 13px; }
+  .hand-card__suit { font-size: 15px; }
+  .hand-card__jack-label { font-size: 7px; padding: 1px 3px; }
 
   /* Discard + Log side by side */
   .discard-log-stack { flex-direction: row; align-items: flex-start; gap: 8px; }
