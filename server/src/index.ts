@@ -43,9 +43,26 @@ io.on('connection', (socket) => {
     if (!room) return;
     const player = room.players.find(p => p.clientId === clientId);
     if (!player) return;
+
+    const oldId = player.id;
     player.id = socket.id;
+
+    if (oldId !== socket.id) {
+      // Update every reference to the old socket ID so token colours stay correct
+      for (const row of room.board)
+        for (const cell of row) {
+          if (cell.token === oldId) cell.token = socket.id;
+          if (cell.lockedBy === oldId) cell.lockedBy = socket.id;
+        }
+      for (const seq of room.sequences)
+        if (seq.playerId === oldId) seq.playerId = socket.id;
+      if (room.winner === oldId) room.winner = socket.id;
+      for (const entry of room.log)
+        if (entry.playerId === oldId) entry.playerId = socket.id;
+    }
+
     socket.join(roomId);
-    socket.emit('game_state', buildPlayerView(room, player.id));
+    broadcastRoom(room); // everyone gets updated player IDs and correct token colours
   });
 
   socket.on('create_room', (name: string, cb: (res: { roomId: string } | { error: string }) => void) => {
