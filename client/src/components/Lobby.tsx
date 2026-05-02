@@ -21,6 +21,13 @@ export default function Lobby({
   const [joinCode, setJoinCode] = useState('');
   const [editingName, setEditingName] = useState(false);
   const [draftName, setDraftName] = useState('');
+  const [copied, setCopied] = useState(false);
+
+  const copyRoomId = (id: string) => {
+    navigator.clipboard.writeText(id);
+    setCopied(true);
+    setTimeout(() => setCopied(false), 2000);
+  };
 
   const me = view?.players.find(p => p.id === view.myId);
   const isHost = view && view.players[0]?.id === view.myId;
@@ -64,8 +71,12 @@ export default function Lobby({
     <div className="lobby">
       <h1 className="lobby__title">Sequence</h1>
       <div className="lobby__room-code">
-        Room: <strong>{view.roomId}</strong>
-        <span className="lobby__room-hint"> — share this with friends</span>
+        <div>Room: <strong>{view.roomId}</strong>
+          <button className="lobby__copy-btn" onClick={() => copyRoomId(view.roomId)}>
+            {copied ? '✓ Copied' : 'Copy'}
+          </button>
+        </div>
+        <span className="lobby__room-hint">Share this code with friends</span>
       </div>
 
       <div className="lobby__players">

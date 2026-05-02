@@ -1,13 +1,4 @@
-import { useState } from 'react';
-import {
-  DndContext, closestCenter,
-  DragOverlay, useSensor, useSensors, PointerSensor,
-} from '@dnd-kit/core';
-import type { DragEndEvent, DragStartEvent } from '@dnd-kit/core';
-import {
-  SortableContext, horizontalListSortingStrategy,
-  useSortable, arrayMove,
-} from '@dnd-kit/sortable';
+import { useSortable } from '@dnd-kit/sortable';
 import { CSS } from '@dnd-kit/utilities';
 import { parseCard } from '../data/boardLayout';
 import type { CardCode } from '../types';
@@ -21,18 +12,26 @@ interface CardTileProps {
 
 export function CardTile({ card, isSelected, isDragging, onClick }: CardTileProps) {
   const { rank, suit, color } = parseCard(card);
+  const jackLabel = card === 'JC' || card === 'JD' ? 'WILD'
+                  : card === 'JS' || card === 'JH' ? 'REMOVE'
+                  : null;
   return (
     <div
       className={[
         'hand-card',
         `hand-card--${color}`,
         isSelected ? 'hand-card--selected' : '',
-        isDragging ? 'hand-card--dragging' : '',
+        isDragging  ? 'hand-card--dragging'  : '',
       ].join(' ')}
       onClick={onClick}
     >
       <span className="hand-card__rank">{rank}</span>
       <span className="hand-card__suit">{suit}</span>
+      {jackLabel && (
+        <span className={`hand-card__jack-label hand-card__jack-label--${jackLabel.toLowerCase()}`}>
+          {jackLabel}
+        </span>
+      )}
     </div>
   );
 }
@@ -44,12 +43,21 @@ interface SortableCardProps {
   onClick: () => void;
 }
 
-function SortableCard({ id, card, isSelected, onClick }: SortableCardProps) {
-  const { attributes, listeners, setNodeRef, transform, transition, isDragging } = useSortable({ id });
+export function SortableCard({ id, card, isSelected, onClick }: SortableCardProps) {
+  const { attributes, listeners, setNodeRef, transform, transition, isDragging } = useSortable({
+    id,
+    animateLayoutChanges: () => false,
+  });
   return (
     <div
       ref={setNodeRef}
-      style={{ transform: CSS.Transform.toString(transform), transition, opacity: isDragging ? 0.3 : 1 }}
+      style={{
+        transform: CSS.Transform.toString(
+          transform ? { ...transform, scaleX: 1, scaleY: 1 } : null
+        ),
+        transition: transform ? transition : 'none',
+        opacity: isDragging ? 0 : 1,
+      }}
       {...attributes}
       {...listeners}
     >
@@ -60,55 +68,27 @@ function SortableCard({ id, card, isSelected, onClick }: SortableCardProps) {
 
 interface HandProps {
   cards: CardCode[];
-  selectedCard: CardCode | null;
-  onSelectCard: (card: CardCode | null) => void;
-  onReorder: (newCards: CardCode[]) => void;
+  ids: string[];
+  selectedCardId: string | null;
+  onSelectCard: (id: string, card: CardCode) => void;
   isMyTurn: boolean;
 }
 
-export default function Hand({ cards, selectedCard, onSelectCard, onReorder, isMyTurn }: HandProps) {
-  const [draggedId, setDraggedId] = useState<string | null>(null);
-  // Stable IDs: index-based since we need to map back to cards after reorder
-  const ids = cards.map((_, i) => `hand-${i}`);
-
-  const sensors = useSensors(useSensor(PointerSensor, { activationConstraint: { distance: 6 } }));
-
-  const handleDragStart = (e: DragStartEvent) => setDraggedId(e.active.id as string);
-
-  const handleDragEnd = (e: DragEndEvent) => {
-    setDraggedId(null);
-    const { active, over } = e;
-    if (!over || active.id === over.id) return;
-    const oldIdx = parseInt((active.id as string).replace('hand-', ''));
-    const newIdx = parseInt((over.id as string).replace('hand-', ''));
-    onReorder(arrayMove(cards, oldIdx, newIdx));
-  };
-
-  const draggedCard = draggedId != null
-    ? cards[parseInt(draggedId.replace('hand-', ''))]
-    : null;
-
+export default function Hand({ cards, ids, selectedCardId, onSelectCard, isMyTurn }: HandProps) {
   return (
-    <DndContext sensors={sensors} collisionDetection={closestCenter} onDragStart={handleDragStart} onDragEnd={handleDragEnd}>
-      <SortableContext items={ids} strategy={horizontalListSortingStrategy}>
-        <div className={`hand ${isMyTurn ? 'hand--active' : ''}`}>
-          {cards.map((card, i) => (
-            <SortableCard
-              key={ids[i]}
-              id={ids[i]}
-              card={card}
-              isSelected={selectedCard === card && cards.indexOf(card) === i}
-              onClick={() => {
-                if (!isMyTurn) return;
-                onSelectCard(selectedCard === card ? null : card);
-              }}
-            />
-          ))}
-        </div>
-      </SortableContext>
-      <DragOverlay>
-        {draggedCard ? <CardTile card={draggedCard} isSelected={false} isDragging /> : null}
-      </DragOverlay>
-    </DndContext>
+    <div className={`hand ${isMyTurn ? 'hand--active' : ''}`}>
+      {cards.map((card, i) => (
+        <SortableCard
+          key={ids[i]}
+          id={ids[i]}
+          card={card}
+          isSelected={selectedCardId === ids[i]}
+          onClick={() => {
+            if (!isMyTurn) return;
+            onSelectCard(ids[i], card);
+          }}
+        />
+      ))}
+    </div>
   );
 }

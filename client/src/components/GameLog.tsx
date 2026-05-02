@@ -33,7 +33,7 @@ export default function GameLog({ log, players }: GameLogProps) {
       {open && (
         <div className="game-log__panel" ref={listRef}>
           {log.length === 0 && <div className="game-log__empty">No moves yet.</div>}
-          {[...log].reverse().map(entry => (
+          {log.map(entry => (
             <div key={entry.id} className="game-log__entry">
               {entry.playerId ? (
                 <>
