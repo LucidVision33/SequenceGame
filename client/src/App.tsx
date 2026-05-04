@@ -17,6 +17,16 @@ import { parseCard } from './data/boardLayout';
 import { sounds } from './sounds';
 import './index.css';
 
+function getPreviewCells(board: GameView['board'], card: CardCode | null): Set<string> {
+  if (!card || card === 'JC' || card === 'JD' || card === 'JS' || card === 'JH') return new Set();
+  const preview = new Set<string>();
+  for (let r = 0; r < 10; r++)
+    for (let c = 0; c < 10; c++)
+      if (board[r][c].card === card && board[r][c].token !== null)
+        preview.add(`${r},${c}`);
+  return preview;
+}
+
 function getValidCells(board: GameView['board'], card: CardCode | null, myId: string): Set<string> {
   if (!card) return new Set();
   const valid = new Set<string>();
@@ -92,18 +102,18 @@ export default function App() {
   // Sound effects
   useEffect(() => {
     if (!view || view.phase !== 'playing') return;
-    const mySeq = view.players.find(p => p.id === view.myId)?.sequenceCount ?? 0;
+    const totalSeq = view.totalSequences ?? 0;
 
     if (view.winner && view.winner !== prevWinnerRef.current) {
       sounds.win();
     } else if (view.currentPlayerId === view.myId && prevTurnRef.current !== view.myId) {
       sounds.yourTurn();
-    } else if (mySeq > prevSeqRef.current) {
+    } else if (totalSeq > prevSeqRef.current) {
       sounds.sequence();
     }
 
     prevTurnRef.current = view.currentPlayerId;
-    prevSeqRef.current = mySeq;
+    prevSeqRef.current = totalSeq;
     prevWinnerRef.current = view.winner;
   }, [view]);
 
@@ -123,6 +133,15 @@ export default function App() {
 
   const handleStartGame = () => {
     if (view) socket.emit('start_game', view.roomId);
+  };
+
+  const handlePlayAgain = () => {
+    if (view) socket.emit('restart_game', view.roomId);
+  };
+
+  const handleLeave = () => {
+    localStorage.removeItem('seq_room_id');
+    window.location.reload();
   };
 
   const handleSetColor = (color: TokenColor) => {
@@ -224,7 +243,9 @@ export default function App() {
   const draggedCard = draggedHandId !== null
     ? (hand[stableHandIds.current.indexOf(draggedHandId)] ?? null)
     : null;
-  const validCells = getValidCells(view.board, selectedCard ?? draggedCard, view.myId);
+  const activeCard = selectedCard ?? draggedCard;
+  const validCells = isMyTurn ? getValidCells(view.board, activeCard, view.myId) : new Set<string>();
+  const previewCells = getPreviewCells(view.board, activeCard);
   const playerColors: Record<string, string> = {};
   for (const p of view.players) playerColors[p.id] = TOKEN_COLOR_HEX[p.tokenColor];
 
@@ -247,6 +268,10 @@ export default function App() {
               <div className="win-modal__emoji">🎉</div>
               <div className="win-modal__label">Winner!</div>
               <div className="win-modal__name">{winnerName}</div>
+              <div className="win-modal__actions">
+                <button className="btn btn--primary" onClick={handlePlayAgain}>Play Again</button>
+                <button className="btn btn--secondary" onClick={handleLeave}>Leave</button>
+              </div>
             </div>
           </div>
         )}
@@ -264,6 +289,7 @@ export default function App() {
               board={view.board}
               lastPlayedCell={view.lastPlayedCell}
               validCells={validCells}
+              previewCells={previewCells}
               playerColors={playerColors}
               onCellClick={handleCellClick}
             />

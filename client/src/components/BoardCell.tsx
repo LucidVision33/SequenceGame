@@ -8,11 +8,12 @@ interface BoardCellProps {
   col: number;
   isLastPlayed: boolean;
   isValid: boolean;
+  isPreview: boolean;
   playerColors: Record<string, string>;
   onClick: () => void;
 }
 
-export default function BoardCell({ cell, row, col, isLastPlayed, isValid, playerColors, onClick }: BoardCellProps) {
+export default function BoardCell({ cell, row, col, isLastPlayed, isValid, isPreview, playerColors, onClick }: BoardCellProps) {
   const { rank, suit, color } = parseCard(cell.card);
   const isFree = cell.card === 'FREE';
   const tokenHex = cell.token ? (playerColors[cell.token] ?? '#888') : null;
@@ -31,7 +32,8 @@ export default function BoardCell({ cell, row, col, isLastPlayed, isValid, playe
         'board-cell',
         isFree            ? 'board-cell--free'        : '',
         isLastPlayed      ? 'board-cell--last-played' : '',
-        isValid           ? 'board-cell--valid'       : '',
+        isValid           ? 'board-cell--valid'        : '',
+        isPreview         ? 'board-cell--preview'     : '',
         isOver && isValid ? 'board-cell--drag-over'   : '',
         cell.lockedBy     ? 'board-cell--locked'      : '',
       ].join(' ')}

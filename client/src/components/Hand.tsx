@@ -83,10 +83,7 @@ export default function Hand({ cards, ids, selectedCardId, onSelectCard, isMyTur
           id={ids[i]}
           card={card}
           isSelected={selectedCardId === ids[i]}
-          onClick={() => {
-            if (!isMyTurn) return;
-            onSelectCard(ids[i], card);
-          }}
+          onClick={() => onSelectCard(ids[i], card)}
         />
       ))}
     </div>

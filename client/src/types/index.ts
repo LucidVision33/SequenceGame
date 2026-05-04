@@ -35,6 +35,7 @@ export interface GameView {
   winner: string | null;
   roomId: string;
   log: LogEntry[];
+  totalSequences: number;
 }
 
 export const TOKEN_COLOR_HEX: Record<TokenColor, string> = {

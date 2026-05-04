@@ -146,6 +146,23 @@ io.on('connection', (socket) => {
     broadcastRoom(result.room!);
   });
 
+  socket.on('restart_game', (roomId: string) => {
+    const room = rooms.get(roomId);
+    if (!room) return;
+    if (!room.players.find(p => p.id === socket.id)) return;
+    room.phase = 'lobby';
+    room.board = createInitialBoard();
+    room.deck = [];
+    room.discardPile = [];
+    room.lastPlayedCell = null;
+    room.winner = null;
+    room.sequences = [];
+    room.log = [];
+    room.currentPlayerIndex = 0;
+    room.players.forEach(p => { p.hand = []; p.sequenceCount = 0; });
+    broadcastRoom(room);
+  });
+
   socket.on('set_color', ({ roomId, color }: { roomId: string; color: TokenColor }) => {
     const room = rooms.get(roomId);
     if (!room || room.phase !== 'lobby') return;

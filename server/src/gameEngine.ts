@@ -257,5 +257,6 @@ export function buildPlayerView(room: Room, socketId: string) {
     winner: room.winner,
     roomId: room.id,
     log: room.log,
+    totalSequences: room.sequences.length,
   };
 }
