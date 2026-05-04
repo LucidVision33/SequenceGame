@@ -1,4 +1,4 @@
-import type { ServerBoardCell, Room, ServerPlayer, LogEntry } from './types.js';
+import type { ServerBoardCell, Room } from './types.js';
 
 export const BOARD_LAYOUT: string[][] = [
   ['FREE', '6D', '7D', '8D', '9D', 'TD', 'QD', 'KD', 'AD', 'FREE'],
@@ -58,65 +58,90 @@ export function findBoardPositions(card: string): [number, number][] {
   return out;
 }
 
-// All lines of 5+ cells on the board (horizontal, vertical, both diagonals)
-function getAllLines(): [number, number][][] {
-  const lines: [number, number][][] = [];
-  for (let r = 0; r < 10; r++)
-    lines.push(Array.from({ length: 10 }, (_, c) => [r, c] as [number, number]));
-  for (let c = 0; c < 10; c++)
-    lines.push(Array.from({ length: 10 }, (_, r) => [r, c] as [number, number]));
-  // Diagonals ↘ (r - c = d, d from -5 to 5)
-  for (let d = -5; d <= 5; d++) {
-    const cells: [number, number][] = [];
-    for (let r = 0; r < 10; r++) { const c = r - d; if (c >= 0 && c < 10) cells.push([r, c]); }
-    if (cells.length >= 5) lines.push(cells);
-  }
-  // Diagonals ↙ (r + c = s, s from 4 to 14)
-  for (let s = 4; s <= 14; s++) {
-    const cells: [number, number][] = [];
-    for (let r = 0; r < 10; r++) { const c = s - r; if (c >= 0 && c < 10) cells.push([r, c]); }
-    if (cells.length >= 5) lines.push(cells);
-  }
-  return lines;
-}
-
 function cellKey(r: number, c: number) { return `${r},${c}`; }
 
-function findSequencesInLine(
-  board: ServerBoardCell[][],
-  line: [number, number][],
-  playerId: string
-): [number, number][][] {
-  const seqs: [number, number][][] = [];
-  let run: [number, number][] = [];
-  for (const [r, c] of line) {
-    const cell = board[r][c];
-    if (cell.card === 'FREE' || cell.token === playerId) {
-      run.push([r, c]);
-      if (run.length === 5) {
-        seqs.push([...run]);
-        run = []; // reset — a 6th chip in same direction doesn't auto-extend this sequence
-      }
-    } else {
-      run = [];
-    }
-  }
-  return seqs;
-}
+const DIRECTIONS: [number, number][] = [[0, 1], [1, 0], [1, 1], [1, -1]];
 
-export function detectNewSequences(
+function getRunInDirection(
   board: ServerBoardCell[][],
   playerId: string,
-  alreadyLocked: Set<string>
-): [number, number][][] {
-  const newSeqs: [number, number][][] = [];
-  for (const line of getAllLines()) {
-    for (const seq of findSequencesInLine(board, line, playerId)) {
-      const overlapCount = seq.filter(([r, c]) => alreadyLocked.has(cellKey(r, c))).length;
-      if (overlapCount <= 1) newSeqs.push(seq);
-    }
+  row: number, col: number,
+  dr: number, dc: number
+): [number, number][] {
+  const back: [number, number][] = [];
+  let r = row - dr, c = col - dc;
+  while (r >= 0 && r < 10 && c >= 0 && c < 10) {
+    const cell = board[r][c];
+    if (cell.token === playerId || cell.card === 'FREE') { back.unshift([r, c]); r -= dr; c -= dc; }
+    else break;
   }
-  return newSeqs;
+  const run: [number, number][] = [...back, [row, col]];
+  r = row + dr; c = col + dc;
+  while (r >= 0 && r < 10 && c >= 0 && c < 10) {
+    const cell = board[r][c];
+    if (cell.token === playerId || cell.card === 'FREE') { run.push([r, c]); r += dr; c += dc; }
+    else break;
+  }
+  return run;
+}
+
+function getValidWindows(
+  run: [number, number][],
+  lockedSet: Set<string>
+): [number, number][][] {
+  const windows: [number, number][][] = [];
+  for (let i = 0; i <= run.length - 5; i++) {
+    const w = run.slice(i, i + 5) as [number, number][];
+    if (w.filter(([r, c]) => lockedSet.has(cellKey(r, c))).length <= 1) windows.push(w);
+  }
+  return windows;
+}
+
+function analyzeNewSequences(
+  board: ServerBoardCell[][],
+  playerId: string,
+  row: number, col: number,
+  lockedSet: Set<string>
+): { autoLocks: [number, number][][]; pendingOptions: [number, number][][][] } {
+  const autoLocks: [number, number][][] = [];
+  const pendingOptions: [number, number][][][] = [];
+  for (const [dr, dc] of DIRECTIONS) {
+    const run = getRunInDirection(board, playerId, row, col, dr, dc);
+    if (run.length < 5) continue;
+    const windows = getValidWindows(run, lockedSet);
+    if (windows.length === 0) continue;
+    if (windows.length === 1) autoLocks.push(windows[0]);
+    else pendingOptions.push(windows);
+  }
+  return { autoLocks, pendingOptions };
+}
+
+export function resolveSequenceChoice(
+  room: Room,
+  playerId: string,
+  chosenCells: [number, number][]
+): MoveResult {
+  if (!room.pendingSequenceChoice) return { error: 'not_your_turn' };
+  if (room.players[room.currentPlayerIndex].id !== playerId) return { error: 'not_your_turn' };
+  const chosen = chosenCells.map(([r, c]) => cellKey(r, c)).sort().join('|');
+  const isValid = room.pendingSequenceChoice.options.some(
+    opt => opt.map(([r, c]) => cellKey(r, c)).sort().join('|') === chosen
+  );
+  if (!isValid) return { error: 'invalid_target' };
+
+  const newRoom: Room = JSON.parse(JSON.stringify(room));
+  const newPlayer = newRoom.players.find(p => p.id === playerId)!;
+  newRoom.sequences.push({ playerId, cells: chosenCells });
+  for (const [r, c] of chosenCells) newRoom.board[r][c].lockedBy = playerId;
+  newPlayer.sequenceCount = newRoom.sequences.filter(s => s.playerId === playerId).length;
+  newRoom.log.push({ id: newRoom.log.length, playerId, playerName: newPlayer.name, action: `completed sequence ${newPlayer.sequenceCount}!` });
+  if (newPlayer.sequenceCount >= SEQUENCES_TO_WIN) {
+    newRoom.winner = playerId;
+    newRoom.log.push({ id: newRoom.log.length, playerId, playerName: newPlayer.name, action: `wins the game! 🎉` });
+  }
+  newRoom.pendingSequenceChoice = null;
+  newRoom.currentPlayerIndex = (newRoom.currentPlayerIndex + 1) % newRoom.players.length;
+  return { room: newRoom };
 }
 
 export function getLockedCells(room: Room): Set<string> {
@@ -148,6 +173,7 @@ export function applyMove(
   row: number,
   col: number
 ): MoveResult {
+  if (room.pendingSequenceChoice) return { error: 'not_your_turn' };
   if (room.players[room.currentPlayerIndex].id !== playerId)
     return { error: 'not_your_turn' };
 
@@ -209,22 +235,27 @@ export function applyMove(
   // Check for new sequences (only on placement, not removal)
   if (!isOneEyedJack(card)) {
     const newLocked = getLockedCells(newRoom);
-    const newSeqs = detectNewSequences(newRoom.board, playerId, newLocked);
-    for (const cells of newSeqs) {
+    const { autoLocks, pendingOptions } = analyzeNewSequences(newRoom.board, playerId, row, col, newLocked);
+    for (const cells of autoLocks) {
       newRoom.sequences.push({ playerId, cells });
       for (const [r, c] of cells) newRoom.board[r][c].lockedBy = playerId;
     }
     newPlayer.sequenceCount = newRoom.sequences.filter(s => s.playerId === playerId).length;
-    if (newSeqs.length > 0) {
+    if (autoLocks.length > 0) {
       newRoom.log.push({ id: newRoom.log.length, playerId, playerName: newPlayer.name, action: `completed sequence ${newPlayer.sequenceCount}!` });
     }
     if (newPlayer.sequenceCount >= SEQUENCES_TO_WIN) {
       newRoom.winner = playerId;
       newRoom.log.push({ id: newRoom.log.length, playerId, playerName: newPlayer.name, action: `wins the game! 🎉` });
+      newRoom.currentPlayerIndex = (newRoom.currentPlayerIndex + 1) % newRoom.players.length;
+      return { room: newRoom };
+    }
+    if (pendingOptions.length > 0) {
+      newRoom.pendingSequenceChoice = { options: pendingOptions[0] };
+      return { room: newRoom };
     }
   }
 
-  // Advance turn
   newRoom.currentPlayerIndex = (newRoom.currentPlayerIndex + 1) % newRoom.players.length;
   return { room: newRoom };
 }
@@ -258,5 +289,6 @@ export function buildPlayerView(room: Room, socketId: string) {
     roomId: room.id,
     log: room.log,
     totalSequences: room.sequences.length,
+    pendingSequenceChoice: room.pendingSequenceChoice ?? null,
   };
 }

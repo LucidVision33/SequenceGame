@@ -7,11 +7,12 @@ interface BoardProps {
   lastPlayedCell: [number, number] | null;
   validCells: Set<string>;
   previewCells: Set<string>;
+  choiceCells: Map<string, number>;
   playerColors: Record<string, string>;
   onCellClick: (row: number, col: number) => void;
 }
 
-export default function Board({ board, lastPlayedCell, validCells, previewCells, playerColors, onCellClick }: BoardProps) {
+export default function Board({ board, lastPlayedCell, validCells, previewCells, choiceCells, playerColors, onCellClick }: BoardProps) {
   return (
     <div className="board">
       {board.map((row, r) =>
@@ -24,6 +25,7 @@ export default function Board({ board, lastPlayedCell, validCells, previewCells,
             isLastPlayed={lastPlayedCell?.[0] === r && lastPlayedCell?.[1] === c}
             isValid={validCells.has(`${r},${c}`)}
             isPreview={previewCells.has(`${r},${c}`)}
+            choiceOption={choiceCells.get(`${r},${c}`) ?? null}
             playerColors={playerColors}
             onClick={() => onCellClick(r, c)}
           />

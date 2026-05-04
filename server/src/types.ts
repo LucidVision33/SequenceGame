@@ -35,4 +35,5 @@ export interface Room {
   winner: string | null;
   sequences: { playerId: string; cells: [number, number][] }[];
   log: LogEntry[];
+  pendingSequenceChoice: { options: [number, number][][] } | null;
 }

@@ -62,7 +62,6 @@ export default function App() {
 
   const prevTurnRef = useRef<string | null>(null);
   const prevSeqRef = useRef<number>(0);
-  const prevWinnerRef = useRef<string | null>(null);
 
   const sensors = useSensors(
     useSensor(PointerSensor, { activationConstraint: { distance: 6 } }),
@@ -99,14 +98,18 @@ export default function App() {
     if (error) { const t = setTimeout(() => setError(null), 3000); return () => clearTimeout(t); }
   }, [error]);
 
-  // Sound effects
+  // Win jingle — own effect so it fires for all players the moment winner is set
+  useEffect(() => {
+    if (!view?.winner) return;
+    sounds.win();
+  }, [view?.winner]);
+
+  // Turn and sequence sounds
   useEffect(() => {
     if (!view || view.phase !== 'playing') return;
     const totalSeq = view.totalSequences ?? 0;
 
-    if (view.winner && view.winner !== prevWinnerRef.current) {
-      sounds.win();
-    } else if (view.currentPlayerId === view.myId && prevTurnRef.current !== view.myId) {
+    if (view.currentPlayerId === view.myId && prevTurnRef.current !== view.myId) {
       sounds.yourTurn();
     } else if (totalSeq > prevSeqRef.current) {
       sounds.sequence();
@@ -114,7 +117,6 @@ export default function App() {
 
     prevTurnRef.current = view.currentPlayerId;
     prevSeqRef.current = totalSeq;
-    prevWinnerRef.current = view.winner;
   }, [view]);
 
   const handleCreateRoom = (name: string) => {
@@ -173,6 +175,17 @@ export default function App() {
   const handleCellClick = (row: number, col: number) => {
     if (!view || view.phase !== 'playing') return;
     if (view.currentPlayerId !== view.myId) return;
+
+    if (view.pendingSequenceChoice) {
+      for (const opt of view.pendingSequenceChoice.options) {
+        if (opt.some(([r, c]) => r === row && c === col)) {
+          socket.emit('choose_sequence', { roomId: view.roomId, cells: opt });
+          return;
+        }
+      }
+      return;
+    }
+
     if (!selectedCard) return;
     const valid = getValidCells(view.board, selectedCard, view.myId);
     if (valid.has(`${row},${col}`)) playCard(selectedCard, row, col);
@@ -244,8 +257,18 @@ export default function App() {
     ? (hand[stableHandIds.current.indexOf(draggedHandId)] ?? null)
     : null;
   const activeCard = selectedCard ?? draggedCard;
-  const validCells = getValidCells(view.board, activeCard, view.myId);
-  const previewCells = getPreviewCells(view.board, activeCard);
+  const inChoiceMode = !!view.pendingSequenceChoice;
+  const validCells = inChoiceMode ? new Set<string>() : getValidCells(view.board, activeCard, view.myId);
+  const previewCells = inChoiceMode ? new Set<string>() : getPreviewCells(view.board, activeCard);
+  const choiceCells = new Map<string, number>();
+  if (view.pendingSequenceChoice) {
+    for (const [i, opt] of view.pendingSequenceChoice.options.entries()) {
+      for (const [r, c] of opt) {
+        const k = `${r},${c}`;
+        if (!choiceCells.has(k)) choiceCells.set(k, i);
+      }
+    }
+  }
   const playerColors: Record<string, string> = {};
   for (const p of view.players) playerColors[p.id] = TOKEN_COLOR_HEX[p.tokenColor];
 
@@ -281,8 +304,11 @@ export default function App() {
           {/* ── Left: Board ── */}
           <div className="game__board-col">
             <div className={`turn-banner ${isMyTurn ? 'turn-banner--mine' : ''}`}>
-              {isMyTurn ? 'Your turn' : `${view.players.find(p => p.id === view.currentPlayerId)?.name}'s turn`}
-              {isMyTurn && (selectedCard || draggedCard) && <span className="turn-hint"> — drop on a highlighted cell</span>}
+              {inChoiceMode && isMyTurn
+                ? 'Choose your sequence — click any highlighted cell'
+                : isMyTurn
+                  ? <>Your turn{(selectedCard || draggedCard) && <span className="turn-hint"> — drop on a highlighted cell</span>}</>
+                  : `${view.players.find(p => p.id === view.currentPlayerId)?.name}'s turn`}
             </div>
 
             <Board
@@ -290,6 +316,7 @@ export default function App() {
               lastPlayedCell={view.lastPlayedCell}
               validCells={validCells}
               previewCells={previewCells}
+              choiceCells={choiceCells}
               playerColors={playerColors}
               onCellClick={handleCellClick}
             />

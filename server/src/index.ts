@@ -7,7 +7,7 @@ import type { Room, TokenColor } from './types.js';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 import {
-  createDeck, createInitialBoard, dealHands, applyMove, buildPlayerView
+  createDeck, createInitialBoard, dealHands, applyMove, buildPlayerView, resolveSequenceChoice
 } from './gameEngine.js';
 
 const app = express();
@@ -80,6 +80,7 @@ io.on('connection', (socket) => {
       winner: null,
       sequences: [],
       log: [],
+      pendingSequenceChoice: null,
     };
     rooms.set(roomId, room);
     socket.join(roomId);
@@ -159,8 +160,19 @@ io.on('connection', (socket) => {
     room.sequences = [];
     room.log = [];
     room.currentPlayerIndex = 0;
+    room.pendingSequenceChoice = null;
     room.players.forEach(p => { p.hand = []; p.sequenceCount = 0; });
     broadcastRoom(room);
+  });
+
+  socket.on('choose_sequence', ({ roomId, cells }: { roomId: string; cells: [number, number][] }) => {
+    const room = rooms.get(roomId);
+    if (!room || room.phase !== 'playing') return;
+    const result = resolveSequenceChoice(room, socket.id, cells);
+    if (result.error) { socket.emit('move_error', result.error); return; }
+    rooms.set(roomId, result.room!);
+    if (result.room!.winner) result.room!.phase = 'finished';
+    broadcastRoom(result.room!);
   });
 
   socket.on('set_color', ({ roomId, color }: { roomId: string; color: TokenColor }) => {

@@ -36,6 +36,7 @@ export interface GameView {
   roomId: string;
   log: LogEntry[];
   totalSequences: number;
+  pendingSequenceChoice: { options: [number, number][][] } | null;
 }
 
 export const TOKEN_COLOR_HEX: Record<TokenColor, string> = {
