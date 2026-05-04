@@ -303,9 +303,9 @@ export default function App() {
 
           {/* ── Left: Board ── */}
           <div className="game__board-col">
-            <div className={`turn-banner ${isMyTurn ? 'turn-banner--mine' : ''}`}>
+            <div className={`turn-banner ${inChoiceMode && isMyTurn ? 'turn-banner--choice' : isMyTurn ? 'turn-banner--mine' : ''}`}>
               {inChoiceMode && isMyTurn
-                ? 'Choose your sequence — click any highlighted cell'
+                ? 'Choose your sequence — click a highlighted token'
                 : isMyTurn
                   ? <>Your turn{(selectedCard || draggedCard) && <span className="turn-hint"> — drop on a highlighted cell</span>}</>
                   : `${view.players.find(p => p.id === view.currentPlayerId)?.name}'s turn`}

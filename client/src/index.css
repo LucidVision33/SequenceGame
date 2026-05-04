@@ -141,6 +141,7 @@ body {
 }
 .turn-banner { border: 1px solid transparent; }
 .turn-banner--mine { color: #f0e68c; background: #2a2a1a; border-color: #6a6a20; }
+.turn-banner--choice { color: #fff8e1; background: #3d2800; border-color: #c08000; font-size: 1.05rem; }
 .turn-hint { font-size: 0.82rem; opacity: 0.8; }
 
 .win-overlay {
@@ -207,12 +208,30 @@ body {
 .board-cell--preview { border-color: #b89a20; background: #faf6e0; }
 .board-cell--drag-over { background: #c0d8f4; border-color: #2a70b9; }
 .board-cell--locked { }
-.board-cell--choice-0 { border-color: #00bcd4; background: #e0f7fa; cursor: pointer; }
-.board-cell--choice-0:hover { background: #b2ebf2; }
-.board-cell--choice-1 { border-color: #ff9800; background: #fff3e0; cursor: pointer; }
-.board-cell--choice-1:hover { background: #ffe0b2; }
-.board-cell--choice-2 { border-color: #9c27b0; background: #f3e5f5; cursor: pointer; }
-.board-cell--choice-2:hover { background: #e1bee7; }
+
+/* Sequence choice mode — ring glows on the tokens, not just the cell background */
+@keyframes choice-glow {
+  0%, 100% { opacity: 0.85; }
+  50%       { opacity: 1; }
+}
+.board-cell--choice-0 { border-color: #00bcd4; background: #c0f0f8; cursor: pointer; }
+.board-cell--choice-1 { border-color: #ff9800; background: #fde8c0; cursor: pointer; }
+.board-cell--choice-2 { border-color: #9c27b0; background: #edd5f5; cursor: pointer; }
+.board-cell--choice-0 .board-cell__token {
+  box-shadow: inset 0 -3px 6px rgba(0,0,0,0.28), 2px 3px 5px rgba(0,0,0,0.50),
+    3px 5px 10px rgba(0,0,0,0.22), 0 0 0 3.5px #00bcd4, 0 0 10px 4px rgba(0,188,212,0.6);
+  animation: choice-glow 1s ease-in-out infinite;
+}
+.board-cell--choice-1 .board-cell__token {
+  box-shadow: inset 0 -3px 6px rgba(0,0,0,0.28), 2px 3px 5px rgba(0,0,0,0.50),
+    3px 5px 10px rgba(0,0,0,0.22), 0 0 0 3.5px #ff9800, 0 0 10px 4px rgba(255,152,0,0.6);
+  animation: choice-glow 1s ease-in-out infinite;
+}
+.board-cell--choice-2 .board-cell__token {
+  box-shadow: inset 0 -3px 6px rgba(0,0,0,0.28), 2px 3px 5px rgba(0,0,0,0.50),
+    3px 5px 10px rgba(0,0,0,0.22), 0 0 0 3.5px #9c27b0, 0 0 10px 4px rgba(156,39,176,0.6);
+  animation: choice-glow 1s ease-in-out infinite;
+}
 
 /* Corner indicators — top-left */
 .board-cell__corner {
