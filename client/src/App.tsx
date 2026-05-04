@@ -244,7 +244,7 @@ export default function App() {
     ? (hand[stableHandIds.current.indexOf(draggedHandId)] ?? null)
     : null;
   const activeCard = selectedCard ?? draggedCard;
-  const validCells = isMyTurn ? getValidCells(view.board, activeCard, view.myId) : new Set<string>();
+  const validCells = getValidCells(view.board, activeCard, view.myId);
   const previewCells = getPreviewCells(view.board, activeCard);
   const playerColors: Record<string, string> = {};
   for (const p of view.players) playerColors[p.id] = TOKEN_COLOR_HEX[p.tokenColor];
